@@ -137,7 +137,7 @@ clean {
     }
 }
 
-def tasksOf(Closure<Task> filter) {
+TaskCollection<KonanTest> tasksOf(Closure<Boolean> filter) {
     String prefix = project.findProperty("prefix")
     project.tasks.withType(KonanTest)
             .matching { filter(it) && it.enabled && (prefix != null ? it.name.startsWith(prefix) : true) }
@@ -3170,4 +3170,9 @@ task buildKonanTests(type: BuildKonanTest) {
                     excludeList += it.source
                 }
             }
+}
+
+task sanity {
+    dependsOn(tasksOf { it instanceof RunKonanTest })
+    dependsOn(runStdlibTests)
 }
