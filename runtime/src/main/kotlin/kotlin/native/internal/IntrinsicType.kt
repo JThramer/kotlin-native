@@ -40,6 +40,7 @@ class IntrinsicType {
         const val OBJC_GET_MESSENGER_STRET      = "OBJC_GET_MESSENGER_STRET"
         const val OBJC_GET_OBJC_CLASS           = "OBJC_GET_OBJC_CLASS"
         const val OBJC_GET_RECEIVER_OR_SUPER    = "OBJC_GET_RECEIVER_OR_SUPER"
+        const val OBJC_INIT_BY                  = "OBJC_INIT_BY"
 
         // Other
         const val GET_CLASS_TYPE_INFO           = "GET_CLASS_TYPE_INFO"
@@ -49,6 +50,8 @@ class IntrinsicType {
         const val LIST_OF_INTERNAL              = "LIST_OF_INTERNAL"
         const val IDENTITY                      = "IDENTITY"
         const val GET_CONTINUATION              = "GET_CONTINUATION"
+        const val IMMUTABLE_BLOB                = "IMMUTABLE_BLOB"
+        const val INIT_INSTANCE                 = "INIT_INSTANCE"
 
         // Interop
         const val READ_PRIMITIVE        = "READ_PRIMITIVE"

@@ -4,6 +4,7 @@ import kotlinx.cinterop.cValuesOf
 import llvm.*
 import org.jetbrains.kotlin.backend.konan.descriptors.TypedIntrinsic
 import org.jetbrains.kotlin.backend.konan.descriptors.isIntrinsic
+import org.jetbrains.kotlin.backend.konan.descriptors.isTypedIntrinsic
 import org.jetbrains.kotlin.backend.konan.reportCompilationError
 import org.jetbrains.kotlin.ir.IrElement
 import org.jetbrains.kotlin.ir.declarations.IrConstructor
@@ -50,6 +51,7 @@ private enum class IntrinsicType {
     OBJC_GET_MESSENGER_STRET,
     OBJC_GET_OBJC_CLASS,
     OBJC_GET_RECEIVER_OR_SUPER,
+    OBJC_INIT_BY,
     // Other
     GET_CLASS_TYPE_INFO,
     READ_BITS,
@@ -58,6 +60,8 @@ private enum class IntrinsicType {
     LIST_OF_INTERNAL,
     IDENTITY,
     GET_CONTINUATION,
+    IMMUTABLE_BLOB,
+    INIT_INSTANCE,
     // Interop
     READ_PRIMITIVE,
     WRITE_PRIMITIVE,
@@ -95,50 +99,49 @@ internal class IntrinsicGenerator(private val environment: IntrinsicGeneratorEnv
     private val IrCall.llvmReturnType: LLVMTypeRef
         get() = LLVMGetReturnType(codegen.getLlvmFunctionType(symbol.owner))!!
 
-    private fun getIntrinsicType(callSite: IrCall): IntrinsicType {
+    private fun getIntrinsicType(callSite: IrFunctionAccessExpression): IntrinsicType {
         val function = callSite.symbol.owner
         val annotation = function.descriptor.annotations.findAnnotation(TypedIntrinsic)!!
         val value = annotation.allValueArguments[Name.identifier("kind")]!!.value as String
         return IntrinsicType.valueOf(value)
     }
 
-    fun evaluateSpecialCall(expression: IrFunctionAccessExpression): LLVMValueRef? {
-        val function = expression.symbol.owner
+    fun evaluateSpecialCall(callSite: IrFunctionAccessExpression): LLVMValueRef? {
+        val function = callSite.symbol.owner
 
-        // TODO: Read
-        if (function.isIntrinsic) {
-            when (function.descriptor) {
-                context.interopBuiltIns.objCObjectInitBy -> {
-                    val receiver = environment.evaluateExpression(expression.extensionReceiver!!)
-                    val irConstructorCall = expression.getValueArgument(0) as IrCall
-                    val constructorDescriptor = irConstructorCall.symbol.owner as IrConstructor
-                    val constructorArgs = environment.evaluateExplicitArgs(irConstructorCall)
-                    val args = listOf(receiver) + constructorArgs
-                    environment.evaluateCall(constructorDescriptor, args, Lifetime.IRRELEVANT)
-                    return receiver
-                }
-
-                context.immutableBlobOf -> {
-                    @Suppress("UNCHECKED_CAST")
-                    val arg = expression.getValueArgument(0) as IrConst<String>
-                    return context.llvm.staticData.createImmutableBlob(arg)
-                }
-
-                context.ir.symbols.initInstance.descriptor -> {
-                    val callee = expression as IrCall
-                    val initializer = callee.getValueArgument(1) as IrCall
-                    val thiz = environment.evaluateExpression(callee.getValueArgument(0)!!)
-                    environment.evaluateCall(
-                            initializer.symbol.owner,
-                            listOf(thiz) + environment.evaluateExplicitArgs(initializer),
-                            environment.calculateLifetime(initializer)
-                    )
-                    return codegen.theUnitInstanceRef.llvm
-                }
-            }
+        // TODO: Better handling of special intrinsics
+        if (!function.isTypedIntrinsic) {
+            return null
         }
 
-        return null
+        return when (getIntrinsicType(callSite)) {
+            IntrinsicType.IMMUTABLE_BLOB -> {
+                @Suppress("UNCHECKED_CAST")
+                val arg = callSite.getValueArgument(0) as IrConst<String>
+                context.llvm.staticData.createImmutableBlob(arg)
+            }
+            IntrinsicType.OBJC_INIT_BY -> {
+                val receiver = environment.evaluateExpression(callSite.extensionReceiver!!)
+                val irConstructorCall = callSite.getValueArgument(0) as IrCall
+                val constructorDescriptor = irConstructorCall.symbol.owner as IrConstructor
+                val constructorArgs = environment.evaluateExplicitArgs(irConstructorCall)
+                val args = listOf(receiver) + constructorArgs
+                environment.evaluateCall(constructorDescriptor, args, Lifetime.IRRELEVANT)
+                receiver
+            }
+            IntrinsicType.INIT_INSTANCE -> {
+                val callee = callSite as IrCall
+                val initializer = callee.getValueArgument(1) as IrCall
+                val thiz = environment.evaluateExpression(callee.getValueArgument(0)!!)
+                environment.evaluateCall(
+                        initializer.symbol.owner,
+                        listOf(thiz) + environment.evaluateExplicitArgs(initializer),
+                        environment.calculateLifetime(initializer)
+                )
+                codegen.theUnitInstanceRef.llvm
+            }
+            else -> null
+        }
     }
 
     fun evaluateCall(callSite: IrCall, args: List<LLVMValueRef>): LLVMValueRef =
@@ -146,7 +149,7 @@ internal class IntrinsicGenerator(private val environment: IntrinsicGeneratorEnv
 
     // Assuming that we checked for `TypedIntrinsic` annotation presence.
     private fun FunctionGenerationContext.evaluateCall(callSite: IrCall, args: List<LLVMValueRef>): LLVMValueRef =
-            when (getIntrinsicType(callSite)) {
+            when (val intrinsicType = getIntrinsicType(callSite)) {
                 IntrinsicType.PLUS -> emitPlus(args)
                 IntrinsicType.MINUS -> emitMinus(args)
                 IntrinsicType.TIMES -> emitTimes(args)
@@ -196,6 +199,11 @@ internal class IntrinsicGenerator(private val environment: IntrinsicGeneratorEnv
                 IntrinsicType.LIST_OF_INTERNAL -> emitListOfInternal(callSite, args)
                 IntrinsicType.IDENTITY -> emitIdentity(args)
                 IntrinsicType.GET_CONTINUATION -> emitGetContinuation()
+                IntrinsicType.IMMUTABLE_BLOB,
+                IntrinsicType.INIT_INSTANCE,
+                IntrinsicType.OBJC_INIT_BY ->
+                    // TODO: better message?
+                    context.reportCompilationError("$intrinsicType should be handled by `evaluateSpecialCall`")
             }
 
     private fun FunctionGenerationContext.emitGetContinuation(): LLVMValueRef =
