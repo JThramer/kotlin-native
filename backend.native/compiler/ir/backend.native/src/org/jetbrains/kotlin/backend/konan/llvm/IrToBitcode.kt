@@ -1825,7 +1825,7 @@ internal class CodeGeneratorVisitor(val context: Context, val lifetimes: Map<IrE
     private fun evaluateCall(value: IrFunctionAccessExpression): LLVMValueRef {
         context.log{"evaluateCall                   : ${ir2string(value)}"}
 
-        intrinsicGenerator.evaluateSpecialCall(value)?.let { return it }
+        intrinsicGenerator.tryEvaluateSpecialCall(value)?.let { return it }
 
         val args = evaluateExplicitArgs(value)
 

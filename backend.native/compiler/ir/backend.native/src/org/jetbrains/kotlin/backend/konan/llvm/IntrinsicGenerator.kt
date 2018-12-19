@@ -99,6 +99,9 @@ internal class IntrinsicGenerator(private val environment: IntrinsicGeneratorEnv
     private val IrCall.llvmReturnType: LLVMTypeRef
         get() = LLVMGetReturnType(codegen.getLlvmFunctionType(symbol.owner))!!
 
+    private val specialIntrinsics =
+            setOf(IntrinsicType.INIT_INSTANCE, IntrinsicType.OBJC_INIT_BY, IntrinsicType.IMMUTABLE_BLOB)
+
     private fun getIntrinsicType(callSite: IrFunctionAccessExpression): IntrinsicType {
         val function = callSite.symbol.owner
         val annotation = function.descriptor.annotations.findAnnotation(TypedIntrinsic)!!
@@ -106,15 +109,13 @@ internal class IntrinsicGenerator(private val environment: IntrinsicGeneratorEnv
         return IntrinsicType.valueOf(value)
     }
 
-    fun evaluateSpecialCall(callSite: IrFunctionAccessExpression): LLVMValueRef? {
+    fun tryEvaluateSpecialCall(callSite: IrFunctionAccessExpression): LLVMValueRef? {
         val function = callSite.symbol.owner
-
-        // TODO: Better handling of special intrinsics
         if (!function.isTypedIntrinsic) {
             return null
         }
-
-        return when (getIntrinsicType(callSite)) {
+        val intrinsicType = getIntrinsicType(callSite)
+        return when (intrinsicType) {
             IntrinsicType.IMMUTABLE_BLOB -> {
                 @Suppress("UNCHECKED_CAST")
                 val arg = callSite.getValueArgument(0) as IrConst<String>
@@ -199,11 +200,9 @@ internal class IntrinsicGenerator(private val environment: IntrinsicGeneratorEnv
                 IntrinsicType.LIST_OF_INTERNAL -> emitListOfInternal(callSite, args)
                 IntrinsicType.IDENTITY -> emitIdentity(args)
                 IntrinsicType.GET_CONTINUATION -> emitGetContinuation()
-                IntrinsicType.IMMUTABLE_BLOB,
-                IntrinsicType.INIT_INSTANCE,
-                IntrinsicType.OBJC_INIT_BY ->
-                    // TODO: better message?
-                    context.reportCompilationError("$intrinsicType should be handled by `evaluateSpecialCall`")
+                in specialIntrinsics ->
+                    context.reportCompilationError("$intrinsicType should be handled by `tryEvaluateSpecialCall`")
+                else -> context.reportCompilationError("Unsupported intrinsic type: $intrinsicType")
             }
 
     private fun FunctionGenerationContext.emitGetContinuation(): LLVMValueRef =
