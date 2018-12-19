@@ -3,7 +3,6 @@ package org.jetbrains.kotlin.backend.konan.llvm
 import kotlinx.cinterop.cValuesOf
 import llvm.*
 import org.jetbrains.kotlin.backend.konan.descriptors.TypedIntrinsic
-import org.jetbrains.kotlin.backend.konan.descriptors.isIntrinsic
 import org.jetbrains.kotlin.backend.konan.descriptors.isTypedIntrinsic
 import org.jetbrains.kotlin.backend.konan.reportCompilationError
 import org.jetbrains.kotlin.ir.IrElement
@@ -59,7 +58,10 @@ private enum class IntrinsicType {
     CREATE_UNINITIALIZED_INSTANCE,
     LIST_OF_INTERNAL,
     IDENTITY,
+    // Coroutines
     GET_CONTINUATION,
+    RETURN_IF_SUSPEND,
+
     IMMUTABLE_BLOB,
     INIT_INSTANCE,
     // Interop
@@ -68,7 +70,14 @@ private enum class IntrinsicType {
     GET_POINTER_SIZE,
     NATIVE_PTR_TO_LONG,
     NATIVE_PTR_PLUS_LONG,
-    GET_NATIVE_NULL_PTR
+    GET_NATIVE_NULL_PTR,
+    INTEROP_CONVERT,
+    INTEROP_BITS_TO_FLOAT,
+    INTEROP_BITS_TO_DOUBLE,
+    INTEROP_SIGN_EXTEND,
+    INTEROP_NARROW,
+    INTEROP_STATIC_C_FUNCTION,
+    INTEROP_FUNPTR_INVOKE
 }
 
 internal interface IntrinsicGeneratorEnvironment {
@@ -200,10 +209,21 @@ internal class IntrinsicGenerator(private val environment: IntrinsicGeneratorEnv
                 IntrinsicType.LIST_OF_INTERNAL -> emitListOfInternal(callSite, args)
                 IntrinsicType.IDENTITY -> emitIdentity(args)
                 IntrinsicType.GET_CONTINUATION -> emitGetContinuation()
+                IntrinsicType.RETURN_IF_SUSPEND,
+                IntrinsicType.INTEROP_BITS_TO_FLOAT,
+                IntrinsicType.INTEROP_BITS_TO_DOUBLE,
+                IntrinsicType.INTEROP_SIGN_EXTEND,
+                IntrinsicType.INTEROP_NARROW,
+                IntrinsicType.INTEROP_STATIC_C_FUNCTION,
+                IntrinsicType.INTEROP_FUNPTR_INVOKE,
+                IntrinsicType.INTEROP_CONVERT -> reportNonLoweredIntrinsic(intrinsicType)
                 in specialIntrinsics ->
                     context.reportCompilationError("$intrinsicType should be handled by `tryEvaluateSpecialCall`")
                 else -> context.reportCompilationError("Unsupported intrinsic type: $intrinsicType")
             }
+
+    private fun reportNonLoweredIntrinsic(intrinsicType: IntrinsicType): Nothing =
+            context.reportCompilationError("Intrinsic of type $intrinsicType should be handled by previos lowering phase")
 
     private fun FunctionGenerationContext.emitGetContinuation(): LLVMValueRef =
             environment.continuation

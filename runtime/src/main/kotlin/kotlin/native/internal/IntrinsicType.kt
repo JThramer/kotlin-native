@@ -49,7 +49,10 @@ class IntrinsicType {
         const val CREATE_UNINITIALIZED_INSTANCE = "CREATE_UNINITIALIZED_INSTANCE"
         const val LIST_OF_INTERNAL              = "LIST_OF_INTERNAL"
         const val IDENTITY                      = "IDENTITY"
+        // TODO: COROUTINE_ prefix
         const val GET_CONTINUATION              = "GET_CONTINUATION"
+        const val RETURN_IF_SUSPEND             = "RETURN_IF_SUSPEND"
+
         const val IMMUTABLE_BLOB                = "IMMUTABLE_BLOB"
         const val INIT_INSTANCE                 = "INIT_INSTANCE"
 
@@ -60,5 +63,12 @@ class IntrinsicType {
         const val NATIVE_PTR_TO_LONG    = "NATIVE_PTR_TO_LONG"
         const val NATIVE_PTR_PLUS_LONG  = "NATIVE_PTR_PLUS_LONG"
         const val GET_NATIVE_NULL_PTR   = "GET_NATIVE_NULL_PTR"
+        const val INTEROP_CONVERT       = "INTEROP_CONVERT"
+        const val INTEROP_BITS_TO_FLOAT = "INTEROP_BITS_TO_FLOAT"
+        const val INTEROP_BITS_TO_DOUBLE = "INTEROP_BITS_TO_DOUBLE"
+        const val INTEROP_SIGN_EXTEND   = "INTEROP_SIGN_EXTEND"
+        const val INTEROP_NARROW        = "INTEROP_NARROW"
+        const val INTEROP_STATIC_C_FUNCTION = "INTEROP_STATIC_C_FUNCTION"
+        const val INTEROP_FUNPTR_INVOKE = "INTEROP_FUNPTR_INVOKE"
     }
 }
